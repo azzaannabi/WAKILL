@@ -244,6 +244,7 @@ select.mini{width:auto;min-height:38px;padding:6px 10px;font-size:15px}
 <main id="view"></main>
 <nav class="tabs" aria-label="Navigation"><div class="tabs-in" id="tabs"></div></nav>
 <div class="sheet" id="sheet" hidden><div class="scrim" data-act="close"></div><section class="panel" id="panel" role="dialog" aria-modal="true"></section></div>
+<input type="file" id="photoInput" accept="image/*" capture="environment" hidden aria-hidden="true">
 <div class="toast" id="toast" role="status" aria-live="polite" hidden></div>
 
 <script>
@@ -684,6 +685,16 @@ async function openNewOrder(){
   try{const o=await api("POST","/api/orders",{});o.events=o.events||[];db.orders.unshift(o);snap.o[o.id]=jstr(o);openOrder(o.id);}
   catch(e){toast("Création impossible : "+e.message);}
 }
+function fileToDataUrl(file){return new Promise((ok,ko)=>{const r=new FileReader();r.onload=()=>ok(r.result);r.onerror=ko;r.readAsDataURL(file);});}
+async function orderFromPhoto(file){
+  toast("Analyse de l'image…");
+  try{
+    const dataUrl=await fileToDataUrl(file);
+    const o=await api("POST","/api/order-from-image",{image:dataUrl});
+    o.events=o.events||[];db.orders.unshift(o);snap.o[o.id]=jstr(o);
+    toast("Commande créée — vérifie les informations");openOrder(o.id);
+  }catch(e){toast("Analyse impossible : "+e.message);}
+}
 function openMsg(id,key,lang){
   const o=ord(id);if(!o)return;lang=lang||db.settings.langue;
   ui.sheet={type:"msg",id,key,lang,sent:false};
@@ -810,6 +821,7 @@ const ACT={
   close:()=>closeSheet(),
   "open-order":([id])=>openOrder(+id),
   "new-order":()=>openNewOrder(),
+  "order-photo":()=>$("#photoInput").click(),
   filter:([f])=>{ui.filter=f;render();},
   "set-status":([id,st])=>changeStatus(+id,st,st==="sans_reponse"||st==="annulee"),
   "ask-confirm":([id])=>openMsg(+id,"demande"),
@@ -895,6 +907,9 @@ document.addEventListener("change",e=>{
     const o=ord(ui.sheet.id);if(o&&el.value){o.dateEst=new Date(el.value+"T12:00:00").getTime();save();const t=buildMsg(o,"en_livraison",ui.sheet.lang);$("#msgText").value=t;$("#waBtn").href=waLink(o.tel,t);}
   }
 });
+document.addEventListener("change",e=>{
+  if(e.target.id==="photoInput"){const f=e.target.files&&e.target.files[0];e.target.value="";if(f)orderFromPhoto(f);}
+});
 document.addEventListener("input",e=>{
   const el=e.target;
   if(el.id==="q"){ui.q=el.value;$("#olist").innerHTML=ordersListHTML();}
@@ -937,7 +952,7 @@ function refreshBadge(){const n=taskCount(),b=$("#badge");if(b){b.textContent=n;
 function render(){
   const subPage=ui.tab==="agent"&&ui.agentTab&&ui.agentTab!=="hub",SUBT={integrations:"Intégrations",tester:"Tester l'agent",appris:"Ce qu'il a appris",boutique:"Ma boutique",messages:"Messages types",simulation:"Simulation"};
   $("#title").textContent=subPage?(SUBT[ui.agentTab]||"Agent"):TITLES[ui.tab];$("#backb").hidden=!subPage;$(".mark").hidden=subPage;
-  $("#hact").innerHTML=ui.tab==="orders"?`<button class="btn sm" data-act="new-order">${I.plus}Commande</button>`:"";
+  $("#hact").innerHTML=ui.tab==="orders"?`<button class="btn sm ghost" data-act="order-photo">Depuis une capture</button><button class="btn sm" data-act="new-order">${I.plus}Commande</button>`:"";
   $("#view").innerHTML={today:vToday,orders:vOrders,messages:vMessages,agent:vAgent,export:vExport}[ui.tab]();
   $("#tabs").innerHTML=[["today","Aujourd'hui"],["orders","Commandes"],["messages","Messages"],["agent","Agent"],["export","Export"]].map(([k,l])=>`<button data-act="tab:${k}" class="${ui.tab===k?"on":""}"${ui.tab===k?' aria-current="page"':""}>${I[k]}<span>${l}</span>${k==="today"?`<span class="badge" id="badge" hidden></span>`:k==="messages"?`<span class="badge" id="badge-m" hidden></span>`:""}</button>`).join("");
   refreshBadge();

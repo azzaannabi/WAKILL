@@ -328,6 +328,26 @@ async function claude(system,messages){
     body:JSON.stringify({model:CFG.model,max_tokens:700,system,tools:TOOLS,messages})});
   await okOrThrow(r,"Claude");return r.json();
 }
+async function extractOrderFromImage(dataUrl){
+  if(!SEC.anthropicKey)throw new Error("ANTHROPIC_API_KEY manquante");
+  const mm=/^data:([\w/+.-]+);base64,(.+)$/.exec(String(dataUrl||""));
+  if(!mm)throw new Error("image invalide");
+  const [,mediaType,b64]=mm;
+  const produits=S.settings.produits.filter(x=>x.actif!==false).map(x=>x.nom).join(", ");
+  const sys=`Tu lis une capture d'écran d'une conversation ou d'un message client tunisien (Instagram, TikTok, WhatsApp, Facebook) pour en extraire les informations d'une commande. Réponds UNIQUEMENT avec un objet JSON strict, sans texte autour, avec exactement ces clés : nom (nom du client tel qu'écrit, chaîne vide si absent), tel (numéro de téléphone tunisien, chiffres uniquement, vide si absent), tel2 (deuxième numéro si mentionné, sinon vide), adresse (adresse complète ou description du lieu, vide si absente), ville (gouvernorat ou ville tunisienne la plus probable, vide si incertain), quartier (quartier ou délégation si mentionné, sinon vide), produit (le nom du produit commandé parmi cette liste si reconnaissable : ${produits||"aucun produit configuré"} — sinon chaîne vide), qte (quantité en nombre entier, 1 par défaut), note (tout détail utile non couvert ailleurs, vide sinon). N'invente jamais une valeur absente de l'image : laisse la clé vide plutôt que de deviner.`;
+  const r=await fetch(CFG.anthropicBase+"/v1/messages",{method:"POST",headers:{"content-type":"application/json","x-api-key":SEC.anthropicKey,"anthropic-version":"2023-06-01"},
+    body:JSON.stringify({model:CFG.model,max_tokens:500,system:sys,messages:[{role:"user",content:[
+      {type:"image",source:{type:"base64",media_type:mediaType,data:b64}},
+      {type:"text",text:"Extrait les informations de commande de cette image, réponds en JSON strict uniquement."}
+    ]}]})});
+  await okOrThrow(r,"Claude");
+  const resp=await r.json();
+  const txt=(resp.content||[]).filter(b=>b.type==="text").map(b=>b.text).join("\n").trim();
+  const jm=txt.match(/\{[\s\S]*\}/);
+  if(!jm)throw new Error("réponse imprévue de l'analyse");
+  let data;try{data=JSON.parse(jm[0]);}catch{throw new Error("réponse imprévue de l'analyse");}
+  return data;
+}
 async function agentTurn(conv,ctx){
   ctx.conv=conv;ctx.events=ctx.events||[];
   const system=systemPrompt(conv);let msgs=toMessages(conv),text="";
@@ -435,7 +455,7 @@ async function onStatusChanged(o){
 const OFIELDS=new Set(["nom","tel","tel2","adresse","ville","gouvernorat","quartier","produitId","qte","montant","canal","convUrl","note","status","confirmAskedAt","confirmedAt","exportedAt","dateEst","draft"]);
 const TFIELDS=new Set(["nom","tel","canal","motif","convUrl","resolvedAt","kind"]);
 const json=(res,code,obj)=>{const b=JSON.stringify(obj);res.writeHead(code,{"content-type":"application/json; charset=utf-8","cache-control":"no-store"});res.end(b);};
-const readBody=req=>new Promise((ok,ko)=>{const a=[];let n=0;req.on("data",c=>{n+=c.length;if(n>5e6){ko(new Error("trop gros"));req.destroy();}else a.push(c);});req.on("end",()=>ok(Buffer.concat(a)));req.on("error",ko);});
+const readBody=req=>new Promise((ok,ko)=>{const a=[];let n=0;req.on("data",c=>{n+=c.length;if(n>9e6){ko(new Error("trop gros"));req.destroy();}else a.push(c);});req.on("end",()=>ok(Buffer.concat(a)));req.on("error",ko);});
 const sha=s=>crypto.createHash("sha256").update(String(s)).digest();
 function authorized(req){
   if(!CFG.dashPassword)return CFG.test;
@@ -523,6 +543,15 @@ async function route(req,res){
     catch(e){return json(res,502,{error:e.message.slice(0,200)});}
   }
   if(m==="POST"&&p==="/api/test/reset"){S.convs=S.convs.filter(c=>c.channel!=="test");persist();return json(res,200,{ok:true});}
+  if(m==="POST"&&p==="/api/order-from-image"){
+    let data;try{data=await extractOrderFromImage(B.image);}catch(e){return json(res,502,{error:e.message.slice(0,200)});}
+    const pr=S.settings.produits.find(x=>x.actif!==false&&x.nom===data.produit)||S.settings.produits.find(x=>x.actif!==false)||S.settings.produits[0];
+    const o={id:S.seq++,nom:String(data.nom||"").slice(0,120),tel:String(data.tel||"").replace(/\D/g,"").slice(0,20),tel2:String(data.tel2||"").replace(/\D/g,"").slice(0,20),
+      adresse:String(data.adresse||"").slice(0,300),ville:String(data.ville||"").slice(0,60),gouvernorat:String(data.ville||"").slice(0,60),quartier:String(data.quartier||"").slice(0,120),
+      produitId:pr?pr.id:"",qte:Math.max(1,parseInt(data.qte,10)||1),montant:0,canal:"Instagram",convId:null,convUrl:"",note:String(data.note||"").slice(0,300),status:"attente",
+      createdAt:Date.now(),confirmAskedAt:null,confirmedAt:null,exportedAt:null,dateEst:null,origine:"reel",events:[],draft:true};
+    o.montant=montantAuto(o);ev(o,"Commande créée depuis une capture d'écran (à vérifier)");S.orders.unshift(o);persist();return json(res,200,o);
+  }
   if(m==="POST"&&p==="/api/export"){
     const list=exportable().filter(validForExport);if(!list.length)return json(res,400,{error:"Rien à exporter."});
     const {buf,filename}=makeExport(list);markExported(list,filename);
