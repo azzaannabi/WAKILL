@@ -544,13 +544,17 @@ const INT_FIELDS=[["anthropicKey","Clé API Claude","sk-ant-…","password","con
  ["verifyToken","Jeton de vérification du webhook","invente un mot secret","text","Choisis n'importe quel mot ; recopie-le exactement dans Meta au même endroit que l'URL du webhook ci-dessous"],
  ["waToken","Jeton WhatsApp Cloud API","EAAG…","password","Meta Business Suite → WhatsApp → API Setup → Jeton d'accès permanent"],
  ["waPhoneId","ID du numéro WhatsApp","1058…","text","Meta Business Suite → WhatsApp → API Setup → Phone number ID"],
- ["ownerWa","Ton numéro WhatsApp (reçoit les alertes)","21899000111 ou 99000111","tel","Ton numéro, avec ou sans l'indicatif 216"]];
+ ["ownerWa","Ton numéro WhatsApp (reçoit les alertes)","21899000111 ou 99000111","tel","Ton numéro, avec ou sans l'indicatif 216"],
+ ["tiktokAppId","TikTok : App ID","","text","business-api.tiktok.com/portal/apps → ton app"],
+ ["tiktokAppSecret","TikTok : App Secret","","password","Même page que l'App ID"],
+ ["tiktokAccessToken","TikTok : jeton d'accès","","password","Donné une fois l'accès à la Business Messaging API approuvé"],
+ ["tiktokBusinessId","TikTok : ID du compte Business","","text","Onglet « Senders » de ton compte TikTok Business"]];
 function vAgent(){
   if(!ui.agentTab||ui.agentTab==="hub"){
     const n=(db.settings.lecons||[]).length,hasSim=typeof vSim==="function";
-    const conn=typeof cfg==="object"&&cfg&&("claude" in cfg)?`<button class="acts connrow" data-act="agtab:integrations">${[["Claude",cfg.claude],["Instagram et Facebook",cfg.meta],["WhatsApp",cfg.whatsapp]].map(([t,ok])=>`<span class="chip ${ok?"c-green":"c-grey"}">${t} : ${ok?"connecté":"non configuré"}</span>`).join("")}</button>`:"";
-    const nc=[cfg.claude,cfg.meta,cfg.whatsapp].filter(Boolean).length;
-    const subOf=k=>k==="appris"?(n?`${n} leçon${n>1?"s":""} apprise${n>1?"s":""}`:"Apprends-lui ta façon de répondre"):k==="integrations"?(nc===3?"Tout est connecté":nc===0?"Rien n'est connecté pour l'instant":`${nc} sur 3 connectés`):AGSUB.find(x=>x[0]===k)[2];
+    const conn=typeof cfg==="object"&&cfg&&("claude" in cfg)?`<button class="acts connrow" data-act="agtab:integrations">${[["Claude",cfg.claude],["Instagram et Facebook",cfg.meta],["WhatsApp",cfg.whatsapp],["TikTok",cfg.tiktok]].map(([t,ok])=>`<span class="chip ${ok?"c-green":"c-grey"}">${t} : ${ok?"connecté":"non configuré"}</span>`).join("")}</button>`:"";
+    const nc=[cfg.claude,cfg.meta,cfg.whatsapp,cfg.tiktok].filter(Boolean).length;
+    const subOf=k=>k==="appris"?(n?`${n} leçon${n>1?"s":""} apprise${n>1?"s":""}`:"Apprends-lui ta façon de répondre"):k==="integrations"?(nc===4?"Tout est connecté":nc===0?"Rien n'est connecté pour l'instant":`${nc} sur 4 connectés`):AGSUB.find(x=>x[0]===k)[2];
     return conn+`<div class="hub">${AGSUB.filter(x=>x[0]!=="simulation"||hasSim).map(([k,t,,ic])=>`<button class="hubrow" data-act="agtab:${k}"><span class="ic">${I[ic]}</span><span><b>${t}</b><span>${subOf(k)}</span></span>${I.chev}</button>`).join("")}</div>`;
   }
   if(ui.agentTab==="integrations")return vIntegrations();
@@ -573,7 +577,10 @@ function vIntegrations(){
   <details class="acc"><summary><span>Instagram et Facebook</span></summary><div class="accb">
   <div class="whurl"><span>URL du webhook à coller dans Meta</span><div class="whrow"><code>${esc(wh)}</code>${wh.startsWith("http")?`<button class="btn sm ghost" data-act="copy-wh">${I.copy}</button>`:""}</div></div>
   ${INT_FIELDS.slice(1,4).map(x=>f(...x)).join("")}</div></details>
-  <details class="acc"><summary><span>WhatsApp</span></summary><div class="accb">${INT_FIELDS.slice(4).map(x=>f(...x)).join("")}</div></details>
+  <details class="acc"><summary><span>WhatsApp</span></summary><div class="accb">${INT_FIELDS.slice(4,7).map(x=>f(...x)).join("")}</div></details>
+  <details class="acc"><summary><span>TikTok</span></summary><div class="accb">
+  <div class="note">TikTok exige une candidature approuvée par leurs équipes (plusieurs jours) avant que ces identifiants ne fonctionnent. Tu peux les coller ici dès que tu les as ; le webhook TikTok sera branché juste après, une fois l'accès confirmé.</div>
+  ${INT_FIELDS.slice(7).map(x=>f(...x)).join("")}</div></details>
   <button class="btn full" data-act="save-integrations">Enregistrer</button>
   <p class="mut small" style="margin-top:14px">Le guide pas à pas complet est dans le fichier README du projet.</p>`;
 }

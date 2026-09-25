@@ -18,7 +18,7 @@ const CFG={
   exportHour:E.EXPORT_HOUR===undefined?20:+E.EXPORT_HOUR,debounceMs:E.DEBOUNCE_MS===undefined?4000:+E.DEBOUNCE_MS,test:E.NODE_ENV==="test"
 };
 const XLSX_MIME="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet";
-const SEC_MAP={anthropicKey:"ANTHROPIC_API_KEY",igToken:"IG_TOKEN",pageToken:"META_PAGE_TOKEN",appSecret:"META_APP_SECRET",verifyToken:"META_VERIFY_TOKEN",waToken:"WHATSAPP_TOKEN",waPhoneId:"WHATSAPP_PHONE_ID",ownerWa:"OWNER_WA",publicUrl:"PUBLIC_URL"};
+const SEC_MAP={anthropicKey:"ANTHROPIC_API_KEY",igToken:"IG_TOKEN",pageToken:"META_PAGE_TOKEN",appSecret:"META_APP_SECRET",verifyToken:"META_VERIFY_TOKEN",waToken:"WHATSAPP_TOKEN",waPhoneId:"WHATSAPP_PHONE_ID",ownerWa:"OWNER_WA",publicUrl:"PUBLIC_URL",tiktokAppId:"TIKTOK_APP_ID",tiktokAppSecret:"TIKTOK_APP_SECRET",tiktokAccessToken:"TIKTOK_ACCESS_TOKEN",tiktokBusinessId:"TIKTOK_BUSINESS_ID"};
 const SEC=new Proxy({},{get(_,k){const v=S?.secrets?.[k];return(v!==undefined&&v!==null&&v!=="")?v:CFG[k];}});
 function publicUrl(){const v=SEC.publicUrl;return v?String(v).replace(/\/$/,""):(S.kv.autoUrl||"");}
 function captureHost(req){
@@ -446,7 +446,7 @@ function authorized(req){
 function stateForClient(){
   return{settings:S.settings,orders:S.orders,tickets:S.tickets,blacklist:S.blacklist,exports:S.exports.slice(-20),
     convs:S.convs.map(convSummary),
-    cfg:{claude:!!SEC.anthropicKey,meta:metaConfigured(),whatsapp:waConfigured(),ownerWa:!!ownerTo(),publicUrl:publicUrl(),exportHour:CFG.exportHour,webhookUrl:publicUrl()?publicUrl()+"/webhook/meta":"",secrets:S.secrets}};
+    cfg:{claude:!!SEC.anthropicKey,meta:metaConfigured(),whatsapp:waConfigured(),tiktok:!!(SEC.tiktokAccessToken&&SEC.tiktokBusinessId),ownerWa:!!ownerTo(),publicUrl:publicUrl(),exportHour:CFG.exportHour,webhookUrl:publicUrl()?publicUrl()+"/webhook/meta":"",secrets:S.secrets}};
 }
 function applySync(b){
   const changed=[];
